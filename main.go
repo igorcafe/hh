@@ -52,6 +52,7 @@ func main() {
 }
 
 func computeFileHash(h hash.Hash, fname string) (string, error) {
+	defer h.Reset()
 	f, err := os.Open(fname)
 	if err != nil {
 		return "", err
