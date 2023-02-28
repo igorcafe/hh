@@ -70,6 +70,7 @@ func main() {
 		}
 	}
 
+	// if -s is passed, hash string passed from flag instead of file(s)
 	if sFlag != "" {
 		h := newHash()
 		_, _ = h.Write([]byte(sFlag))
@@ -78,51 +79,57 @@ func main() {
 		return
 	}
 
+	// if parallelism is enabled, use all CPU logical cores for computing hashes,
+	// otherwise process each file one by one.
 	maxGoroutines := runtime.NumCPU()
 	if noParallelFlag {
 		maxGoroutines = 1
 	}
 
+	// channel for limiting concurrency processing for up `maxGoroutines`
 	chLimit := make(chan struct{}, maxGoroutines)
-	curr := int32(0)
-	nfiles := flag.NArg() - 1
+
+	// index of the current file that will be printed the hash (or error message).
+	// this number is atomically incremented until all files were printed in order.
+	currFile := int32(0)
+
+	// the names of the files that will be processed
+	fnames := flag.Args()[1:]
+
+	// channel for making main gourotine wait until all other goroutines finished processing
 	finished := make(chan struct{})
 
-	for i, fname := range flag.Args()[1:] {
+	for i, fname := range fnames {
 		i := int32(i)
 		h := newHash()
 		fname := fname
 		chLimit <- struct{}{}
 
 		go func() {
-			msg := ""
-			ok := true
 			s, err := computeFileHash(h, fname)
 
-			if err != nil {
-				ok = false
-				msg = fmt.Sprintln(err.Error())
-			} else {
-				msg = fmt.Sprintf("%s  %s\n", s, fname)
-			}
-
+			// although results are computed in parallel, they are shown in
+			// the original order they are passed through args.
+			// this loop waits until it is time to show this result
 			for {
-				c := atomic.LoadInt32(&curr)
+				c := atomic.LoadInt32(&currFile)
 				if c == i {
 					break
 				}
 			}
 
-			if ok {
-				fmt.Print(msg)
+			// If hashing failed, show error on stderr, otherwise print hash & filenmae
+			if err != nil {
+				fmt.Fprintln(os.Stderr, err.Error())
 			} else {
-				fmt.Fprint(os.Stderr, msg)
+				fmt.Println(s + "  " + fname)
 			}
 
-			if i == int32(nfiles)-1 {
+			// if it is the last file, finish execution
+			if i == int32(len(fnames))-1 {
 				close(finished)
 			} else {
-				atomic.StoreInt32(&curr, i+1)
+				atomic.StoreInt32(&currFile, i+1)
 			}
 
 			<-chLimit
