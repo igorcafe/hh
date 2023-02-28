@@ -88,7 +88,7 @@ func main() {
 		h := newHash()
 		_, _ = h.Write([]byte(sFlag))
 		res := h.Sum(nil)
-		fmt.Printf("%s  %s\n", hex.EncodeToString(res), sFlag)
+		fmt.Printf("%s  '%s'\n", hex.EncodeToString(res), sFlag)
 		return
 	}
 
