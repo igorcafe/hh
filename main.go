@@ -13,6 +13,7 @@ import (
 	"io"
 	"os"
 	"runtime"
+	"runtime/pprof"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -21,7 +22,17 @@ import (
 var sFlag string
 var parallelFlag int
 
-func init() {
+func main() {
+	if os.Getenv("PPROF") == "cpu" {
+		f, err := os.Create("cpu.prof")
+		if err != nil {
+			panic(err)
+		}
+
+		pprof.StartCPUProfile(f)
+		defer pprof.StopCPUProfile()
+	}
+
 	flag.StringVar(&sFlag, "s", "", "hash a specific string instead of files")
 	flag.IntVar(&parallelFlag, "p", runtime.NumCPU(), "disable hash parallel computing")
 
@@ -38,9 +49,6 @@ func init() {
 	}
 
 	flag.Parse()
-}
-
-func main() {
 	if flag.NArg() < 1 {
 		flag.Usage()
 		os.Exit(1)
