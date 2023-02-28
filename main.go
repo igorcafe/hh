@@ -18,11 +18,11 @@ import (
 )
 
 var sFlag string
-var noParallelFlag bool
+var parallelFlag int
 
 func init() {
 	flag.StringVar(&sFlag, "s", "", "hash a specific string instead of files")
-	flag.BoolVar(&noParallelFlag, "nop", false, "disable hash parallel computing")
+	flag.IntVar(&parallelFlag, "p", runtime.NumCPU(), "disable hash parallel computing")
 
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage of %s:\n", os.Args[0])
@@ -83,15 +83,8 @@ func main() {
 		return
 	}
 
-	// if parallelism is enabled, use all CPU logical cores for computing hashes,
-	// otherwise process each file one by one.
-	maxGoroutines := runtime.NumCPU()
-	if noParallelFlag {
-		maxGoroutines = 1
-	}
-
-	// channel for limiting concurrency processing for up `maxGoroutines`
-	chLimit := make(chan struct{}, maxGoroutines)
+	// channel for limiting concurrent processing for up `parallelFlag`
+	chLimit := make(chan struct{}, parallelFlag)
 
 	// index of the current file that will be printed the hash (or error message).
 	// this number is atomically incremented until all files were printed in order.
