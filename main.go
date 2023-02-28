@@ -75,9 +75,7 @@ func main() {
 	case "sha512":
 		newHash = sha512.New
 	case "crc32":
-		newHash = func() hash.Hash {
-			return crc32.NewIEEE()
-		}
+		newHash = func() hash.Hash { return crc32.NewIEEE() }
 	default:
 		flag.Usage()
 		os.Exit(1)
