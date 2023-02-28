@@ -34,7 +34,7 @@ func main() {
 	}
 
 	flag.StringVar(&sFlag, "s", "", "hash a specific string instead of files")
-	flag.IntVar(&parallelFlag, "p", runtime.NumCPU(), "disable hash parallel computing")
+	flag.IntVar(&parallelFlag, "p", runtime.NumCPU(), "maximum parallel processing")
 
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage of %s:\n", os.Args[0])
