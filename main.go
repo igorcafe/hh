@@ -14,6 +14,7 @@ import (
 	"os"
 	"runtime"
 	"sync/atomic"
+	"time"
 )
 
 var sFlag string
@@ -116,6 +117,7 @@ func main() {
 				if c == i {
 					break
 				}
+				time.Sleep(time.Millisecond)
 			}
 
 			// If hashing failed, show error on stderr, otherwise print hash & filenmae
