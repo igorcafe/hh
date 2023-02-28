@@ -13,6 +13,7 @@ import (
 	"io"
 	"os"
 	"runtime"
+	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -93,8 +94,8 @@ func main() {
 	// the names of the files that will be processed
 	fnames := flag.Args()[1:]
 
-	// channel for making main gourotine wait until all other goroutines finished processing
-	finished := make(chan struct{})
+	wg := sync.WaitGroup{}
+	wg.Add(len(fnames))
 
 	for i, fname := range fnames {
 		i := int32(i)
@@ -103,6 +104,9 @@ func main() {
 		chLimit <- struct{}{}
 
 		go func() {
+			defer wg.Done()
+			defer atomic.StoreInt32(&currFile, i+1)
+
 			s, err := computeFileHash(h, fname)
 
 			// although results are computed in parallel, they are shown in
@@ -123,18 +127,11 @@ func main() {
 				fmt.Println(s + "  " + fname)
 			}
 
-			// if it is the last file, finish execution
-			if i == int32(len(fnames))-1 {
-				close(finished)
-			} else {
-				atomic.StoreInt32(&currFile, i+1)
-			}
-
 			<-chLimit
 		}()
 	}
 
-	<-finished
+	wg.Wait()
 }
 
 func computeFileHash(h hash.Hash, fname string) (string, error) {
