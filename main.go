@@ -69,6 +69,9 @@ func main() {
 		newHash = func() hash.Hash {
 			return crc32.NewIEEE()
 		}
+	default:
+		flag.Usage()
+		os.Exit(1)
 	}
 
 	// if -s is passed, hash string passed from flag instead of file(s)
