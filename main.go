@@ -14,6 +14,8 @@ import (
 	"os"
 	"runtime"
 	"runtime/pprof"
+	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -21,6 +23,15 @@ import (
 
 var sFlag string
 var parallelFlag int
+var hashes = map[string]func() hash.Hash{
+	"md5":    md5.New,
+	"sha1":   sha1.New,
+	"sha224": sha256.New224,
+	"sha256": sha256.New,
+	"sha384": sha512.New384,
+	"sha512": sha512.New,
+	"crc32":  func() hash.Hash { return crc32.NewIEEE() },
+}
 
 func main() {
 	if os.Getenv("PPROF") == "cpu" {
@@ -42,6 +53,17 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  %s [FLAG]... -s STRING ALGORITHM\n", os.Args[0])
 		flag.PrintDefaults()
 		fmt.Println()
+		fmt.Fprintf(os.Stderr, "Supported algorithms:\n  %s\n\n", strings.Join(func() []string {
+			keys := make([]string, 0, len(hashes))
+
+			for key := range hashes {
+				keys = append(keys, key)
+			}
+
+			sort.Strings(keys)
+
+			return keys
+		}(), " "))
 
 		fmt.Fprintf(os.Stderr, "Examples:\n")
 		fmt.Fprintf(os.Stderr, "  %s sha256 /usr/bin/ls\n", os.Args[0])
@@ -59,24 +81,10 @@ func main() {
 		os.Exit(1)
 	}
 
-	var newHash func() hash.Hash
+	newHash, hashSupported := hashes[flag.Arg(0)]
 
-	switch flag.Args()[0] {
-	case "md5":
-		newHash = md5.New
-	case "sha1":
-		newHash = sha1.New
-	case "sha224":
-		newHash = sha256.New224
-	case "sha256":
-		newHash = sha256.New
-	case "sha384":
-		newHash = sha512.New384
-	case "sha512":
-		newHash = sha512.New
-	case "crc32":
-		newHash = func() hash.Hash { return crc32.NewIEEE() }
-	default:
+	if !hashSupported {
+		fmt.Fprintf(os.Stderr, "Error: unsupported algorithm\n\n")
 		flag.Usage()
 		os.Exit(1)
 	}
