@@ -13,7 +13,6 @@ import (
 	"io"
 	"os"
 	"runtime"
-	"runtime/pprof"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -22,17 +21,19 @@ import (
 var sFlag string
 var parallelFlag int
 
+var algorithms = map[string]func() hash.Hash{
+	"crc32": func() hash.Hash {
+		return crc32.NewIEEE()
+	},
+	"md5":    md5.New,
+	"sha1":   sha1.New,
+	"sha224": sha256.New224,
+	"sha256": sha256.New,
+	"sha384": sha512.New384,
+	"sha512": sha512.New,
+}
+
 func main() {
-	if os.Getenv("PPROF") == "cpu" {
-		f, err := os.Create("cpu.prof")
-		if err != nil {
-			panic(err)
-		}
-
-		pprof.StartCPUProfile(f)
-		defer pprof.StopCPUProfile()
-	}
-
 	flag.StringVar(&sFlag, "s", "", "hash a specific string instead of files")
 	flag.IntVar(&parallelFlag, "p", runtime.NumCPU(), "maximum parallel processing")
 
@@ -41,6 +42,12 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  %s [FLAG]... ALGORITHM FILE...\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "  %s [FLAG]... -s STRING ALGORITHM\n", os.Args[0])
 		flag.PrintDefaults()
+		fmt.Println()
+
+		fmt.Fprintf(os.Stderr, "Supported algorithms:\n")
+		for k := range algorithms {
+			fmt.Fprintf(os.Stderr, "  %s\n", k)
+		}
 		fmt.Println()
 
 		fmt.Fprintf(os.Stderr, "Examples:\n")
@@ -59,24 +66,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	var newHash func() hash.Hash
-
-	switch flag.Args()[0] {
-	case "md5":
-		newHash = md5.New
-	case "sha1":
-		newHash = sha1.New
-	case "sha224":
-		newHash = sha256.New224
-	case "sha256":
-		newHash = sha256.New
-	case "sha384":
-		newHash = sha512.New384
-	case "sha512":
-		newHash = sha512.New
-	case "crc32":
-		newHash = func() hash.Hash { return crc32.NewIEEE() }
-	default:
+	newHash, ok := algorithms[flag.Arg(0)]
+	if !ok {
 		flag.Usage()
 		os.Exit(1)
 	}
@@ -90,11 +81,11 @@ func main() {
 		return
 	}
 
-	// channel for limiting concurrent processing for up `parallelFlag`
+	// channel for limiting concurrent processing for up to `parallelFlag`
 	chLimit := make(chan struct{}, parallelFlag)
 
 	// index of the current file that will be printed the hash (or error message).
-	// this number is atomically incremented until all files were printed in order.
+	// this number is atomically incremented until all files are printed in order.
 	currFile := int32(0)
 
 	// the names of the files that will be processed
