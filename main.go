@@ -18,9 +18,6 @@ import (
 	"time"
 )
 
-var sFlag string
-var parallelFlag int
-
 var algorithms = map[string]func() hash.Hash{
 	"crc32": func() hash.Hash {
 		return crc32.NewIEEE()
@@ -34,8 +31,11 @@ var algorithms = map[string]func() hash.Hash{
 }
 
 func main() {
-	flag.StringVar(&sFlag, "s", "", "hash a specific string instead of files")
-	flag.IntVar(&parallelFlag, "p", runtime.NumCPU(), "maximum parallel processing")
+	var text string
+	var numParallel int
+
+	flag.StringVar(&text, "s", "", "hash a specific string instead of files")
+	flag.IntVar(&numParallel, "p", runtime.NumCPU(), "maximum parallel processing")
 
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage of %s:\n", os.Args[0])
@@ -61,7 +61,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if sFlag == "" && flag.NArg() < 2 {
+	if text == "" && flag.NArg() < 2 {
 		flag.Usage()
 		os.Exit(1)
 	}
@@ -73,16 +73,16 @@ func main() {
 	}
 
 	// if -s is passed, hash string passed from flag instead of file(s)
-	if sFlag != "" {
+	if text != "" {
 		h := newHash()
-		_, _ = h.Write([]byte(sFlag))
+		_, _ = h.Write([]byte(text))
 		res := h.Sum(nil)
-		fmt.Printf("%s  '%s'\n", hex.EncodeToString(res), sFlag)
+		fmt.Printf("%s  '%s'\n", hex.EncodeToString(res), text)
 		return
 	}
 
-	// channel for limiting concurrent processing for up to `parallelFlag`
-	chLimit := make(chan struct{}, parallelFlag)
+	// channel for limiting concurrent processing
+	sem := make(chan struct{}, numParallel)
 
 	// index of the current file that will be printed the hash (or error message).
 	// this number is atomically incremented until all files are printed in order.
@@ -98,7 +98,7 @@ func main() {
 		i := int32(i)
 		h := newHash()
 		fname := fname
-		chLimit <- struct{}{}
+		sem <- struct{}{}
 
 		go func() {
 			defer wg.Done()
@@ -124,7 +124,7 @@ func main() {
 				fmt.Println(s + "  " + fname)
 			}
 
-			<-chLimit
+			<-sem
 		}()
 	}
 
